@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Meet Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-cyan: #06b6d4;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, var(--bg-color));
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Glassmorphism */
+        .glass {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            margin: 1rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--accent-yellow);
+            box-shadow: 0 0 8px var(--accent-yellow);
+            animation: pulse 2s infinite;
+        }
+        
+        .dot.connected { background-color: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); animation: none; }
+        .dot.error { background-color: var(--accent-red); box-shadow: 0 0 8px var(--accent-red); animation: pulse-error 1s infinite;}
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        
+        @keyframes pulse-error {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        /* Main Grid */
+        main {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            padding: 0 1rem 1rem 1rem;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .panel-content {
+            padding: 1.5rem;
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+
+        /* Items */
+        .item {
+            padding: 1rem;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-left: 4px solid var(--text-muted);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .item.transcript { border-left-color: var(--accent-cyan); }
+        .item.chat-ai { border-left-color: var(--accent-green); background: rgba(16, 185, 129, 0.1); }
+        .item.chat-meet { border-left-color: var(--accent-yellow); }
+        .item.alert { border-left-color: var(--accent-red); background: rgba(239, 68, 68, 0.1); }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .item-body {
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .right-column {
+            display: grid;
+            grid-template-rows: 1fr 1fr;
+            gap: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="glass">
+        <div class="logo">Meet Assistant</div>
+        <div class="status-indicators">
+            <div class="indicator"><div id="status-browser" class="dot"></div> Browser</div>
+            <div class="indicator"><div id="status-audio" class="dot"></div> Audio</div>
+            <div class="indicator"><div class="dot connected"></div> LLM: {{MODEL_NAME}}</div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Transcript Panel -->
+        <div class="panel glass">
+            <div class="panel-header">
+                <span>Live Transcript</span>
+                <span style="color: var(--text-muted); font-size: 0.8rem;">Powered by Whisper</span>
+            </div>
+            <div class="panel-content" id="transcript-container">
+                <div style="color: var(--text-muted); font-style: italic; text-align: center; margin-top: 2rem;">Waiting for speech...</div>
+            </div>
+        </div>
+
+        <div class="right-column">
+            <!-- Chat Panel -->
+            <div class="panel glass">
+                <div class="panel-header">
+                    <span>Meeting Chat</span>
+                </div>
+                <div class="panel-content" id="chat-container"></div>
+            </div>
+
+            <!-- Alerts Panel -->
+            <div class="panel glass">
+                <div class="panel-header">
+                    <span>Alerts & Events</span>
+                </div>
+                <div class="panel-content" id="alert-container"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+        const containers = {
+            transcript: document.getElementById("transcript-container"),
+            chat: document.getElementById("chat-container"),
+            alert: document.getElementById("alert-container")
+        };
+
+        let transcriptCount = 0;
+
+        function addElement(type, headerText, bodyText, styleClass) {
+            const container = containers[type];
+            if (transcriptCount === 0 && type === "transcript") {
+                container.innerHTML = ""; // Remove waiting message
+            }
+            if (type === "transcript") transcriptCount++;
+
+            const div = document.createElement("div");
+            div.className = `item ${styleClass}`;
+            
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+
+            div.innerHTML = `
+                <div class="item-header">
+                    <span>${headerText}</span>
+                    <span>${time}</span>
+                </div>
+                <div class="item-body">${bodyText}</div>
+            `;
+            
+            container.appendChild(div);
+            // Auto scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            
+            if (msg.type === "transcript") {
+                addElement("transcript", msg.data.speaker, msg.data.text, "transcript");
+            } 
+            else if (msg.type === "chat") {
+                if (msg.data.source === "ai") {
+                    addElement("chat", "Assistant", msg.data.text, "chat-ai");
+                } else {
+                    addElement("chat", "Meeting", msg.data.text, "chat-meet");
+                }
+            }
+            else if (msg.type === "alert") {
+                addElement("alert", "Panic Detected", msg.data.title, "alert");
+            }
+            else if (msg.type === "status") {
+                const el = document.getElementById(`status-${msg.data.component}`);
+                if (el) {
+                    el.className = `dot ${msg.data.state}`; // "connected" or "error" or ""
+                }
+            }
+        };
+
+        ws.onclose = () => {
+            console.error("WebSocket disconnected");
+            document.querySelectorAll('.dot').forEach(el => el.className = 'dot error');
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+playwright
+sounddevice
+numpy
+scipy
+faster-whisper
+requests
+PyYAML
+fastapi
+uvicorn
+websockets
+

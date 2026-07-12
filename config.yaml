@@ -1,0 +1,56 @@
+# General Configuration
+app:
+  platform: "microsoft_teams" # options: "google_meet", "microsoft_teams"
+
+# Browser Automation Settings
+browser:
+  headless: false
+  meeting_url: "${MEETING_URL}"
+  guest_name: "Sarthak Pujari"
+
+# Event Bus Settings
+event_bus:
+  max_queue_size: 100
+
+# Audio Sensor Settings
+audio:
+  sample_rate: 16000
+  channels: 1
+  # For Linux, leave device index empty to use default system monitor (loopback), 
+  # or specify the exact PulseAudio/PipeWire monitor device index.
+  device_index: null 
+  chunk_duration_seconds: 7 # Process audio in 7-second chunks
+
+# Transcription Settings
+transcription:
+  model_size: "medium" # Upgraded to 'medium' for much better accuracy on fast songs
+  compute_type: "int8"
+
+# LLM Settings (Supports Local Ollama or Online OpenRouter)
+llm:
+  provider: "openrouter" # Options: "ollama" or "openrouter"
+  api_url: "https://openrouter.ai/api/v1/chat/completions"
+  model_name: "google/gemma-4-31b:free"
+  api_key: "${OPENROUTER_API_KEY}"
+  panic_keywords:
+    - "can you hear me"
+    - "sarthak"
+    - "are you there"
+    - "question for"
+
+# Notification Settings (ntfy.sh)
+notification:
+  topic_url: "${NTFY_TOPIC_URL}" # Ensure this is a unique topic
+
+# Browser & UI Selectors (Abstracted for easy updates across platforms)
+selectors:
+  google_meet:
+    chat_button: "button[aria-label='Chat with everyone']"
+    chat_input: "textarea[aria-label='Send a message']"
+    chat_messages: "div.oIy2qc"
+    presentation_area: "div.Kj7h1" # Approximate selector, to be refined during testing
+  microsoft_teams:
+    chat_button: "button[data-tid='chat-button'], button[aria-label='Chat'], #chat-button, button[data-tid='app-bar-chat']"
+    chat_input: "div[data-tid='ckeditor-reply-conversation']"
+    chat_messages: "div[data-tid='chat-message'], div[data-tid='message-body'], div[data-tid='chat-pane-message'], .fui-ChatMessage, .ui-chat__message"
+    presentation_area: "div[data-tid='video-gallery']" # Approximate selector

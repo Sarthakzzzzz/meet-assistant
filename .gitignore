@@ -1,0 +1,25 @@
+# Environment variables (Secrets)
+.env
+
+# Python caching
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Browser state & cached profile data
+data/browser_profile/
+data/presentation_slides/
+
+# Local application logs
+logs/
+*.log
+
+# Temp/debug files
+devices.txt
+devices_container.txt
+
+# Virtual environments
+venv/
+.venv/
+env/
