@@ -23,8 +23,7 @@ audio:
 
 # Transcription Settings
 transcription:
-  model_size: "medium" # Upgraded to 'medium' for much better accuracy on fast songs
-  compute_type: "int8"
+  model_name: "nvidia/canary-1b-v2"
 
 # LLM Settings (Supports Local Ollama or Online OpenRouter)
 llm:

@@ -112,4 +112,4 @@ class IntelligenceWorker:
                 self.bus.publish("SendChat", cleaned_reply)
             
         except Exception as e:
-            logger.error(f"Failed to query Ollama API: {e}")
+            logger.error(f"Failed to query {self.provider} API: {e}")

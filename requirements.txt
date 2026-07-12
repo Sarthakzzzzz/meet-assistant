@@ -2,7 +2,7 @@ playwright
 sounddevice
 numpy
 scipy
-faster-whisper
+nemo_toolkit[asr]
 requests
 PyYAML
 fastapi

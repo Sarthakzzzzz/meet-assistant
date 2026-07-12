@@ -1,6 +1,7 @@
 import logging
 import asyncio
-from faster_whisper import WhisperModel, download_model
+import numpy as np
+from scipy.io import wavfile
 
 logger = logging.getLogger("TranscriptionWorker")
 
@@ -11,19 +12,24 @@ class TranscriptionWorker:
         self.config = config
         
         trans_cfg = config.get("transcription", {})
-        self.model_size = trans_cfg.get("model_size", "base.en")
-        self.compute_type = trans_cfg.get("compute_type", "int8")
+        self.model_name = trans_cfg.get("model_name", "nvidia/canary-1b-v2")
         self.model = None
         self._loading_model = False
 
     def _load_model(self):
         if self.model is None:
-            logger.info(f"Downloading/checking faster-whisper model '{self.model_size}'...")
-            model_path = download_model(self.model_size)
+            logger.info(f"Downloading/loading NVIDIA NeMo model '{self.model_name}' (this may take a while)...")
+            # The progress bar is printed to stdout natively by NeMo/HuggingFace during download.
+            import nemo.collections.asr as nemo_asr
+            self.model = nemo_asr.models.ASRModel.from_pretrained(self.model_name)
             
-            logger.info(f"Loading faster-whisper model from '{model_path}' (device=cpu, compute=int8)...")
-            self.model = WhisperModel(model_path, device="cpu", compute_type="int8")
-            logger.info("faster-whisper model loaded successfully.")
+            logger.info("Moving model to GPU (cuda)...")
+            try:
+                self.model.to("cuda")
+                logger.info("NVIDIA Canary model successfully loaded onto GPU.")
+            except Exception as e:
+                logger.warning(f"Failed to move model to GPU (is CUDA available?). Running on CPU... {e}")
+                self.model.to("cpu")
 
     async def handle_audio_chunk(self, audio_data):
         if self.model is None:
@@ -38,25 +44,34 @@ class TranscriptionWorker:
         
         try:
             def transcribe_blocking():
+                # audio_data is a numpy float32 array
                 audio_flat = audio_data.flatten()
-                segments, info = self.model.transcribe(
-                    audio_flat, 
-                    beam_size=5,
-                    vad_filter=True,
-                    vad_parameters=dict(min_silence_duration_ms=500)
-                )
-                text = "".join(segment.text for segment in segments).strip()
                 
-                cleaned = text.lower().replace(".", "").replace(",", "").replace("?", "").replace("!", "").strip()
-                if not cleaned or cleaned in ["you", "you you", "you you you", "dot"]:
-                    return ""
+                # Write to temp wav file for NeMo to process
+                temp_path = "/tmp/chunk.wav"
+                wavfile.write(temp_path, 16000, audio_flat)
+                
+                # Transcribe
+                transcriptions = self.model.transcribe([temp_path])
+                
+                if isinstance(transcriptions, tuple):
+                    # Some NeMo models return a tuple (texts, logits)
+                    transcriptions = transcriptions[0]
                     
-                return text
+                if transcriptions and len(transcriptions) > 0:
+                    text = transcriptions[0].strip()
+                    
+                    cleaned = text.lower().replace(".", "").replace(",", "").replace("?", "").replace("!", "").strip()
+                    if not cleaned or cleaned in ["you", "you you", "you you you", "dot"]:
+                        return ""
+                        
+                    return text
+                return ""
 
             text = await asyncio.to_thread(transcribe_blocking)
             
             if text:
-                logger.info(f"Whisper output: '{text}'")
+                logger.info(f"Canary output: '{text}'")
                 self.state.add_transcript(speaker="Lecturer", text=text)
                 self.bus.publish("TranscriptUpdated", {"speaker": "Lecturer", "text": text})
                 

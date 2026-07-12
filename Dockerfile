@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     dbus-x11 \
     curl \
     git \
+    libsndfile1 \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Configure ALSA to use PulseAudio directly
@@ -22,6 +24,10 @@ RUN echo "pcm.!default { type pulse }" > /etc/asound.conf && \
     echo "ctl.!default { type pulse }" >> /etc/asound.conf
 
 WORKDIR /app
+
+# Install PyTorch with explicit CUDA 12.1 support (required for GPU acceleration)
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
 # Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

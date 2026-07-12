@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger("Main")
 
 async def main():
-    logger.info("Starting Google Meet Assistant (WEB UI MODE)...")
+    logger.info("Starting Meet Assistant (WEB UI MODE)...")
 
     if os.path.exists(".env"):
         try:
@@ -118,7 +118,7 @@ async def main():
     await browser_sensor.stop()
     await bus.stop()
 
-    logger.info("Google Meet Assistant shut down cleanly.")
+    logger.info("Meet Assistant shut down cleanly.")
 
 if __name__ == "__main__":
     try:
