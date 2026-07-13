@@ -1,11 +1,8 @@
 playwright
-sounddevice
-numpy
-scipy
-nemo_toolkit[asr]
 requests
 PyYAML
 fastapi
 uvicorn
 websockets
+Pillow
 

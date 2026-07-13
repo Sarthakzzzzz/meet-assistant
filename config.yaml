@@ -6,30 +6,19 @@ app:
 browser:
   headless: false
   meeting_url: "${MEETING_URL}"
-  guest_name: "Sarthak Pujari"
+  guest_name: "Sarthak Bot"
 
 # Event Bus Settings
 event_bus:
   max_queue_size: 100
 
-# Audio Sensor Settings
-audio:
-  sample_rate: 16000
-  channels: 1
-  # For Linux, leave device index empty to use default system monitor (loopback), 
-  # or specify the exact PulseAudio/PipeWire monitor device index.
-  device_index: null 
-  chunk_duration_seconds: 7 # Process audio in 7-second chunks
 
-# Transcription Settings
-transcription:
-  model_name: "nvidia/canary-1b-v2"
 
 # LLM Settings (Supports Local Ollama or Online OpenRouter)
 llm:
   provider: "openrouter" # Options: "ollama" or "openrouter"
   api_url: "https://openrouter.ai/api/v1/chat/completions"
-  model_name: "google/gemma-4-31b:free"
+  model_name: "google/gemma-4-31b-it:free"
   api_key: "${OPENROUTER_API_KEY}"
   panic_keywords:
     - "can you hear me"
@@ -48,8 +37,12 @@ selectors:
     chat_input: "textarea[aria-label='Send a message']"
     chat_messages: "div.oIy2qc"
     presentation_area: "div.Kj7h1" # Approximate selector, to be refined during testing
+    captions_container: "[role='region'][aria-label='Captions'], .a4cQT"
+    captions_text: ".CNusmb, span[class*='CNusmb']"
   microsoft_teams:
     chat_button: "button[data-tid='chat-button'], button[aria-label='Chat'], #chat-button, button[data-tid='app-bar-chat']"
     chat_input: "div[data-tid='ckeditor-reply-conversation']"
     chat_messages: "div[data-tid='chat-message'], div[data-tid='message-body'], div[data-tid='chat-pane-message'], .fui-ChatMessage, .ui-chat__message"
-    presentation_area: "div[data-tid='video-gallery']" # Approximate selector
+    presentation_area: "div[data-tid='stage-gallery'], div[class*='stage'], div[class*='presentation'], div[data-tid='video-gallery']"
+    captions_container: "div[data-tid*='caption'], div[class*='caption'], [aria-live='polite'], div[data-tid='closed-captions-container']"
+    captions_text: "span, .fui-Text, [data-tid*='caption-text']"

@@ -7,8 +7,6 @@ from core.event_bus import EventBus
 from core.state_manager import StateManager
 from web.server import start_web_server
 from sensors.browser_sensor import BrowserSensor
-from sensors.audio_sensor import AudioSensor
-from workers.transcription_worker import TranscriptionWorker
 from workers.notification_worker import NotificationWorker
 from workers.intelligence_worker import IntelligenceWorker
 
@@ -62,17 +60,15 @@ async def main():
     state = StateManager()
 
     browser_sensor = BrowserSensor(bus=bus, config=config)
-    audio_sensor = AudioSensor(bus=bus, config=config)
-
-    transcription_worker = TranscriptionWorker(bus=bus, state_manager=state, config=config)
     notification_worker = NotificationWorker(
         topic_url=config.get("notification", {}).get("topic_url")
     )
     intelligence_worker = IntelligenceWorker(bus=bus, state_manager=state, config=config)
 
-    bus.subscribe("AudioChunk", transcription_worker.handle_audio_chunk)
     bus.subscribe("TranscriptUpdated", intelligence_worker.handle_transcript_updated)
     bus.subscribe("ChatReceived", intelligence_worker.handle_chat_received)
+    bus.subscribe("PlatformCaption", intelligence_worker.handle_platform_caption)
+    bus.subscribe("SlideCaptured", intelligence_worker.handle_slide_captured)
     bus.subscribe("TriggerAlert", notification_worker.handle_alert)
 
     bus.start()
@@ -87,13 +83,7 @@ async def main():
         bus.publish("SystemStatus", {"component": "browser", "state": "error"})
         logger.error(f"Browser Sensor failed: {e}")
 
-    try:
-        audio_sensor.start()
-        bus.publish("SystemStatus", {"component": "audio", "state": "connected"})
-        logger.info("Audio Sensor started.")
-    except Exception as e:
-        bus.publish("SystemStatus", {"component": "audio", "state": "error"})
-        logger.warning(f"Audio Sensor failed: {e}")
+
 
     shutdown_event = asyncio.Event()
 
@@ -114,7 +104,6 @@ async def main():
     except asyncio.CancelledError:
         pass
     
-    await audio_sensor.stop()
     await browser_sensor.stop()
     await bus.stop()
 

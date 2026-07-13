@@ -1,36 +1,25 @@
-# Use the official Playwright Python image
-FROM mcr.microsoft.com/playwright/python:v1.61.0-jammy
+# Use the official lightweight Python image
+FROM python:3.10-slim
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 # Install system dependencies
-# Install system dependencies (portaudio, pulseaudio, dbus)
 RUN apt-get update && apt-get install -y \
-    libportaudio2 \
-    portaudio19-dev \
-    libasound2-plugins \
-    pulseaudio \
-    pulseaudio-utils \
     dbus-x11 \
     curl \
     git \
-    libsndfile1 \
-    ffmpeg \
+    ca-certificates \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-
-# Configure ALSA to use PulseAudio directly
-RUN echo "pcm.!default { type pulse }" > /etc/asound.conf && \
-    echo "ctl.!default { type pulse }" >> /etc/asound.conf
 
 WORKDIR /app
 
-# Install PyTorch with explicit CUDA 12.1 support (required for GPU acceleration)
-RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN playwright install --with-deps chromium
 # Copy the rest of the application
 COPY . .
 # Default command
