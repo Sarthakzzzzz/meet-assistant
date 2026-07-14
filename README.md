@@ -6,8 +6,21 @@ Meet Assistant acts as an automated "bot" that joins your Google Meet or Microso
 
 ---
 
-NOTE : the current version is only used for microsoft teams
-for that open chat section and caption section on in the meet and view as full focus on speaker 
+NOTE : 
+1. The current version is only used for microsoft teams for that open chat section and caption section on in the meet and view as full focus on speaker
+---
+ISSUE: 
+1. The current version is not able to locate the presentation area cause microsoft teams use fluentui which sends the streams in the chunks same in the case caption your help will be appreciated will raise the same issue
+
+2. Aboout the Embedding(all-MiniLM-L6-v2)  the LLM only knows what things were spoken not what it has seen there is no OCR there  the ui may show the correct slide if ISSUE 1 is resolved (for the presentation things work like timeline state machine it captures and parses the caption said during slide1 is active, when slide1 changes to slide2 to the worker immediately updates the current active slide1 to slide2 and and new captions under slide2)
+
+3. Also want to add the functionality where it saves meetings and can chat whenever accessed later.(session wise seperate collections for chromadb save slide images in sub directories grouped by meeting id retrieving context from the specific collection matching sessison id)
+
+4. because of playwright for now the presentation opens in the new window but want to open it in the same dashboard using iframe(if it supports) or as you anyone wants to suggest 
+
+5. for now everything is saved in the same folders accross all meetings (will do it later).
+
+
 ---
 
 ## 🌟 Key Features
