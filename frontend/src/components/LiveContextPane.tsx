@@ -3,6 +3,8 @@ import { GlassPane } from "./ui/GlassPane";
 import { motion, AnimatePresence } from "framer-motion";
 import { MonitorPlay, Radio, Activity } from "lucide-react";
 
+import { getBackendUrl } from "@/lib/utils";
+
 interface LiveContextPaneProps {
   isRecording: boolean;
   onStartRecording: () => void;
@@ -63,7 +65,7 @@ export function LiveContextPane({ isRecording, onStartRecording, activeSlidePath
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
                 transition={{ duration: 0.5 }}
-                src={`${process.env.NEXT_PUBLIC_BACKEND_URL}/data/${activeSlidePath.split("data/")[1] ?? activeSlidePath}`}
+                src={`${getBackendUrl()}/data/${activeSlidePath.split("data/")[1] ?? activeSlidePath}`}
                 alt="Active Slide"
                 className="w-full h-full object-contain"
               />

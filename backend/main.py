@@ -67,7 +67,8 @@ async def lifespan(app: FastAPI):
     
     # 1. Load configuration
     try:
-        with open("config.yaml", "r") as f:
+        config_path = "config.yaml" if os.path.exists("config.yaml") else "config.example.yaml"
+        with open(config_path, "r") as f:
             config_str = f.read()
             
         def env_replacer(match):

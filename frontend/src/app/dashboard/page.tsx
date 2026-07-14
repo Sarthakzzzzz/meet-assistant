@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { GlassPane } from "../../components/ui/GlassPane";
+import { getBackendUrl } from "@/lib/utils";
 import { Video, ArrowRight, Loader2 } from "lucide-react";
 
 export default function Dashboard() {
@@ -14,7 +15,7 @@ export default function Dashboard() {
     setIsJoining(true);
     try {
       // Meeting link goes to Playwright automation on port 8081
-      await fetch(`${process.env.NEXT_PUBLIC_PLAYWRIGHT_URL}/api/start-meeting`, {
+      await fetch(`${getBackendUrl()}/api/start-meeting`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url })

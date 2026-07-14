@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { getBackendUrl, getWsUrl } from "@/lib/utils";
 
 export type Message = {
   role: "ai" | "user";
@@ -23,7 +24,7 @@ export function useMeetingWebSocket() {
 
   useEffect(() => {
     // WebSocket connects to Playwright on 8081 for live events
-    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/ws`);
+    const ws = new WebSocket(`${getWsUrl()}/ws`);
     ws.onopen = () => console.log("Connected to Meet Assistant Backend");
     ws.onmessage = (event) => {
       try {
@@ -55,7 +56,7 @@ export function useMeetingWebSocket() {
 
   const handleStartRecording = () => {
     // Start recording via Playwright on 8081
-    fetch(`${process.env.NEXT_PUBLIC_PLAYWRIGHT_URL}/api/start-recording`, { method: "POST" })
+    fetch(`${getBackendUrl()}/api/start-recording`, { method: "POST" })
       .then(res => res.json())
       .then(() => {
         setIsRecording(true);
@@ -70,7 +71,7 @@ export function useMeetingWebSocket() {
     setIsLoading(true);
     
     // Chat queries go to FastAPI RAG backend on 8000
-    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/chat`, {
+    fetch(`${getBackendUrl()}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text })
