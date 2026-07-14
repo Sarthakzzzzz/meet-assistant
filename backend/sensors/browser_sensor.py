@@ -39,7 +39,16 @@ class BrowserSensor:
         self.last_active_committed = False
 
     async def start(self):
-        """Starts Playwright, launches the browser and navigates to the meeting."""
+        # Subscribe to new events for orchestrated startup
+        self.bus.subscribe("StartMeeting", self.handle_start_meeting)
+        self.bus.subscribe("StartRecording", self.handle_start_recording)
+        logger.info("BrowserSensor waiting for 'StartMeeting' command...")
+
+    async def handle_start_meeting(self, meeting_url: str):
+        if self._running:
+            return
+            
+        self.meeting_url = meeting_url
         logger.info(f"Launching Playwright Chromium (headless={self.headless})...")
         self.playwright = await async_playwright().start()
         
@@ -65,102 +74,61 @@ class BrowserSensor:
         logger.info(f"Navigating to {self.platform} meeting: {self.meeting_url}")
         await self.page.goto(self.meeting_url, wait_until="commit")
         
-        if self.platform == "google_meet":
-            try:
-                logger.info("Waiting for pre-join screen to load...")
-                await asyncio.sleep(5)
-                
-                logger.info("Disabling Microphone and Camera...")
-                await self.page.keyboard.press("Control+d")
-                await asyncio.sleep(1)
-                await self.page.keyboard.press("Control+e")
-                await asyncio.sleep(1)
-                
-                name_input = self.page.locator("input[placeholder='Your name']")
-                if await name_input.is_visible():
-                    logger.info(f"Entering guest name: {self.guest_name}...")
-                    await name_input.fill(self.guest_name)
-                    await asyncio.sleep(1)
-                
-                join_buttons = ["Ask to join", "Join now"]
-                for btn_text in join_buttons:
-                    btn = self.page.locator(f"span:has-text('{btn_text}')")
-                    if await btn.is_visible():
-                        logger.info(f"Clicking '{btn_text}'...")
-                        await btn.click()
-                        break
-                
-                logger.info("Waiting to be admitted into the meeting (timeout=60s)...")
-                chat_button = self.selectors.get("chat_button")
-                if chat_button:
-                    await self.page.wait_for_selector(chat_button, timeout=60000)
-                    logger.info("Joined the meeting! Opening chat panel...")
-                    await self.page.click(chat_button)
-                    await asyncio.sleep(1.5)
-                    logger.info("Automatically enabling Google Meet closed captions...")
-                    await self.page.keyboard.press("c")
-                    await asyncio.sleep(1)
-            except Exception as e:
-                logger.error(f"Error during automated meeting join: {e}")
-                
-        elif self.platform == "microsoft_teams":
-            try:
-                logger.info("Handling Microsoft Teams landing page...")
-                web_join_btn = self.page.locator("button:has-text('Continue on this browser'), button[data-tid='joinOnWeb']")
-                if await web_join_btn.is_visible():
-                    logger.info("Clicking 'Continue on this browser'...")
-                    await web_join_btn.click()
-                
-                await asyncio.sleep(6)
-                
-                name_inputs = [
-                    self.page.locator("input[placeholder='Enter name']"),
-                    self.page.locator("input[placeholder='Type your name']"),
-                    self.page.locator("input[data-tid='prejoin-display-name-input']")
-                ]
-                for n_in in name_inputs:
-                    if await n_in.is_visible():
-                        logger.info(f"Entering guest name: {self.guest_name}...")
-                        await n_in.fill(self.guest_name)
-                        await asyncio.sleep(1)
-                        break
-                
-                logger.info("Toggling off microphone and camera...")
-                mic_toggle = self.page.locator("button[data-tid='prejoin-audio-toggle']")
-                cam_toggle = self.page.locator("button[data-tid='prejoin-video-toggle']")
-                
-                if await mic_toggle.is_visible():
-                    await mic_toggle.click()
-                    await asyncio.sleep(0.5)
-                if await cam_toggle.is_visible():
-                    await cam_toggle.click()
-                    await asyncio.sleep(0.5)
-                
-                join_btn = self.page.locator("button:has-text('Join now'), button[data-tid='prejoin-join-button']")
-                if await join_btn.is_visible():
-                    logger.info("Clicking 'Join now'...")
-                    await join_btn.click()
-                
-                logger.info("Waiting to be admitted into the Teams meeting...")
-                chat_button = self.selectors.get("chat_button")
-                if chat_button:
-                    await self.page.wait_for_selector(chat_button, timeout=60000)
-                    logger.info("Joined Teams meeting! Opening chat panel...")
-                    await self.page.click(chat_button)
-                    await asyncio.sleep(1.5)
-                    logger.info("Automatically enabling Microsoft Teams closed captions...")
-                    await self.page.click("body", force=True) # Ensure focus
-                    await self.page.keyboard.press("Control+Shift+C")
-                    await asyncio.sleep(1)
-            except Exception as e:
-                logger.error(f"Error during automated Teams join: {e}")
+        # User will manually log in now. We do NOT wait for selectors or auto-login.
+        logger.info("Browser launched. Waiting for user to manually join the meeting...")
         
+    async def handle_start_recording(self, payload):
+        if self._running:
+            logger.warning("Recording is already running!")
+            return
+            
+        logger.info("User triggered 'Start Recording'. Starting capture loops...")
         self.bus.subscribe("SendChat", self.handle_send_chat)
+        
+        # Discover what large elements exist on the page to help find the right selector
+        await self._discover_stage_element()
         
         self._running = True
         self._tasks.append(asyncio.create_task(self._monitor_chat()))
         self._tasks.append(asyncio.create_task(self._monitor_presentation()))
         self._tasks.append(asyncio.create_task(self._monitor_captions()))
+
+    async def _discover_stage_element(self):
+        """Logs the top large visible elements to help identify the presentation area selector."""
+        try:
+            results = await self.page.evaluate("""() => {
+                const all = Array.from(document.querySelectorAll('*'));
+                const large = [];
+                for (const el of all) {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width > 300 && rect.height > 200 && rect.top >= 0) {
+                        const id = el.id ? '#' + el.id : '';
+                        const dataTid = el.getAttribute('data-tid') ? `[data-tid='${el.getAttribute('data-tid')}']` : '';
+                        const cls = el.className && typeof el.className === 'string'
+                            ? '.' + el.className.trim().split(/\\s+/).slice(0, 2).join('.') 
+                            : '';
+                        large.push({
+                            tag: el.tagName.toLowerCase(),
+                            id: id,
+                            dataTid: dataTid,
+                            cls: cls,
+                            w: Math.round(rect.width),
+                            h: Math.round(rect.height),
+                            area: Math.round(rect.width * rect.height)
+                        });
+                    }
+                }
+                // Sort by area descending, take top 10
+                large.sort((a, b) => b.area - a.area);
+                return large.slice(0, 10);
+            }""")
+            logger.info("=== LARGE ELEMENTS ON PAGE (for selector discovery) ===")
+            for r in results:
+                selector = r['tag'] + (r['id'] or r['dataTid'] or r['cls'])
+                logger.info(f"  {selector}  ({r['w']}x{r['h']})")
+            logger.info("=== END DISCOVERY ===")
+        except Exception as e:
+            logger.warning(f"Discovery failed: {e}")
 
     async def stop(self):
         """Gracefully shuts down Playwright and cancels background loops."""
@@ -168,8 +136,8 @@ class BrowserSensor:
         for task in self._tasks:
             task.cancel()
         
-        if self.browser:
-            await self.browser.close()
+        if self.context:
+            await self.context.close()
         if self.playwright:
             await self.playwright.stop()
         logger.info("Browser sensor offline.")
@@ -249,33 +217,76 @@ class BrowserSensor:
             return False
 
     async def _monitor_presentation(self):
-        """Saves screenshots of presentation slides when visual changes occur."""
+        """Saves screenshots of ONLY the presentation/shared-screen area when slides change."""
         logger.info("Presentation monitor active.")
-        presentation_selector = self.selectors.get("presentation_area")
-        if not presentation_selector:
-            logger.warning("No presentation area selector configured. Slide capture disabled.")
-            return
+
+        # Multiple selectors to try for the shared content area in Microsoft Teams
+        TEAMS_STAGE_SELECTORS = [
+            "div[data-tid='stage-gallery']",
+            "div[data-tid='calling-sharing-stage']",
+            "div[id='calling-sharing-stage']",
+            "div[class*='sharingStage']",
+            "div[class*='content-sharing']",
+            "video[data-tid*='sharing']",
+            "div[class*='stage']",
+        ]
+        # Google Meet selectors
+        GMEET_STAGE_SELECTORS = [
+            "div.Kj7h1",
+            "div[jsname='HlFzId']",
+            "div.crqnQb",
+        ]
+
+        selectors_to_try = TEAMS_STAGE_SELECTORS if self.platform == "microsoft_teams" else GMEET_STAGE_SELECTORS
 
         while self._running:
             try:
-                presentation_element = self.page.locator(presentation_selector)
-                if await presentation_element.is_visible():
-                    screenshot_bytes = await presentation_element.screenshot()
-                    
-                    if self._is_new_slide(screenshot_bytes):
-                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                        filename = f"slide_{timestamp}.png"
-                        filepath = os.path.join(self.slides_dir, filename)
-                        
-                        with open(filepath, "wb") as f:
-                            f.write(screenshot_bytes)
-                        
-                        logger.info(f"Saved new presentation slide: {filepath}")
-                        self.bus.publish("SlideCaptured", filepath)
+                screenshot_bytes = None
+                captured_region = False
+
+                for selector in selectors_to_try:
+                    try:
+                        el = self.page.locator(selector).first
+                        if await el.is_visible(timeout=300):
+                            box = await el.bounding_box()
+                            if box and box["width"] > 200 and box["height"] > 150:
+                                # Screenshot just the element bounding box
+                                screenshot_bytes = await self.page.screenshot(
+                                    clip={
+                                        "x": box["x"],
+                                        "y": box["y"],
+                                        "width": box["width"],
+                                        "height": box["height"],
+                                    }
+                                )
+                                captured_region = True
+                                logger.debug(f"Captured region via selector: {selector} ({box['width']:.0f}x{box['height']:.0f})")
+                                break
+                    except Exception:
+                        continue
+
+                if not captured_region:
+                    # No matching element — skip this cycle, don't do full page fallback
+                    logger.debug("No presentation element found. Skipping this cycle.")
+                    await asyncio.sleep(3)
+                    continue
+
+                if screenshot_bytes and self._is_new_slide(screenshot_bytes):
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"slide_{timestamp}.png"
+                    filepath = os.path.join(self.slides_dir, filename)
+
+                    with open(filepath, "wb") as f:
+                        f.write(screenshot_bytes)
+
+                    logger.info(f"Saved new presentation slide: {filepath}")
+                    self.bus.publish("SlideCaptured", filepath)
+
             except Exception as e:
                 logger.error(f"Error checking presentation slides: {e}")
-                
-            await asyncio.sleep(5)
+
+            await asyncio.sleep(3)
+
 
     def _get_new_suffix(self, old_str: str, new_str: str) -> str:
         if not old_str:

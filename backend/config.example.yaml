@@ -2,6 +2,12 @@
 app:
   platform: "microsoft_teams" # options: "google_meet", "microsoft_teams"
 
+# Login Credentials
+auth:
+  username: "admin"
+  password: "your_secure_password"
+
+
 # Browser Automation Settings
 browser:
   headless: false
@@ -18,7 +24,7 @@ event_bus:
 llm:
   provider: "openrouter" # Options: "ollama" or "openrouter"
   api_url: "https://openrouter.ai/api/v1/chat/completions"
-  model_name: "google/gemma-4-31b-it:free"
+  model_name: "openrouter/free"
   api_key: "${OPENROUTER_API_KEY}"
   panic_keywords:
     - "can you hear me"
