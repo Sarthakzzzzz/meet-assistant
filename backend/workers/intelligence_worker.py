@@ -71,5 +71,8 @@ Answer:"""
         logger.debug(f"Ingested to RAG: {speaker}: {text}")
 
     async def handle_slide_captured(self, filepath: str):
+        # ISSUE #2: This handler only updates the active slide path. It does not run OCR
+        # on the captured image to extract text content for embedding into ChromaDB.
+        # An OCR pass should be added here before or after updating current_slide_path.
         logger.info(f"New slide captured: {filepath}")
         self.current_slide_path = filepath

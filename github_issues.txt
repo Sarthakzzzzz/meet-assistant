@@ -1,0 +1,106 @@
+GITHUB ISSUES FOR MEET ASSISTANT
+=================================
+
+
+ISSUE 1
+-------
+
+Title: FluentUI streaming prevents presentation area DOM scraping on Microsoft Teams
+
+Description:
+
+Microsoft Teams renders its meeting UI using FluentUI, which delivers video and presentation streams via chunked MediaSource buffers rather than exposing static DOM elements. The shared-screen content is painted onto canvas or injected through dynamically reconstructed video nodes, neither of which exposes a stable CSS selector that Playwright can reliably query.
+
+The current selectors defined in config.yaml under selectors.microsoft_teams.presentation_area attempt to match elements like div[data-tid='stage-gallery'], div[class*='stage'], div[class*='presentation'], and div[data-tid='video-gallery']. These selectors either fail to match entirely or match transient containers that are destroyed and recreated across render cycles by FluentUI's reconciliation engine.
+
+As a result, SlideCaptured events are never emitted on Teams. The IntelligenceWorker never receives slide transition events, so caption-to-slide partitioning does not activate. The Current Slide panel in the Next.js dashboard stays in its waiting state indefinitely.
+
+Possible approaches to resolve this include intercepting MediaSource streams via Playwright page.evaluate or CDP, capturing canvas bitmaps via canvas.toDataURL and applying pixel-diffing to detect slide transitions, using the Chrome DevTools Protocol Page.screencastFrame API, or exploring the Microsoft Graph Meeting API for programmatic access to shared content.
+
+Relevant files: backend/sensors/browser_sensor.py, backend/config.example.yaml, backend/workers/intelligence_worker.py
+
+Labels: bug, help wanted, microsoft-teams, browser-sensor
+
+
+ISSUE 2
+-------
+
+Title: Add OCR pipeline for slide content awareness in RAG embeddings
+
+Description:
+
+The RAG pipeline currently has no visual understanding of captured slide images. The all-MiniLM-L6-v2 embedding model only processes spoken captions. The LLM knows what was said during the meeting but has zero awareness of what was displayed on screen.
+
+When a slide is captured, browser_sensor.py emits a SlideCaptured event. The intelligence_worker.py receives it and updates the active_slide in state_manager.py. The vector_store.py then indexes new captions with the active slide file path as metadata. However, the slide image content itself is never extracted or embedded. If a user asks the copilot what was written on a slide, it cannot answer.
+
+The proposed fix is to introduce an OCR extraction stage between slide capture and vector store ingestion. When a SlideCaptured event fires, the slide image would be passed through an OCR engine like pytesseract, EasyOCR, or a vision-language model to extract text. That extracted text would then be embedded into ChromaDB alongside the caption embeddings with slide metadata attached.
+
+Starting with pytesseract is recommended for a minimal initial implementation, with an abstraction layer that allows upgrading to a vision-language model later.
+
+This issue depends on Issue 1 being resolved first, because slide capture must actually be functional before OCR can process any images.
+
+Relevant files: backend/workers/intelligence_worker.py (handle_slide_captured), backend/core/vector_store.py (add_caption), backend/requirements.txt
+
+Labels: enhancement, rag, intelligence-worker
+
+
+ISSUE 3
+-------
+
+Title: Session-based meeting persistence with per-session ChromaDB collections
+
+Description:
+
+All meeting data including captions, slide embeddings, and vector store entries is currently stored in a single global ChromaDB collection called meeting_context. There is no concept of sessions. Data from all meetings is mixed together, and past meetings cannot be individually accessed or queried after the fact.
+
+The vector_store.py creates one collection with collection_name="meeting_context" and persist_directory="./data/chroma_db". Every caption from every meeting goes into this same collection. If the app restarts, the data is preserved but there is no way to tell which captions belong to which meeting. Users cannot go back to a previous meeting and ask the copilot questions about it.
+
+The proposed fix involves several steps. First, generate a unique meeting_id using UUID when the /api/start-meeting endpoint is called. Second, create per-session ChromaDB collections named like meeting_{uuid} instead of the global meeting_context. Third, store slide images in session-scoped subdirectories like data/slides/{meeting_id}/. Fourth, when a user queries the chat, retrieve context from the specific collection matching the active session_id. Fifth, add API endpoints for listing past meetings, loading a past session context, and querying a specific past meeting. Sixth, add a meeting history page in the Next.js frontend where users can browse and re-enter past sessions.
+
+This issue depends on Issue 5 being implemented first, because the directory structure must support session scoping before per-session collections make sense.
+
+Relevant files: backend/core/vector_store.py, backend/main.py, backend/workers/intelligence_worker.py, frontend/src/app/
+
+Labels: enhancement, vector-store, persistence
+
+
+ISSUE 4
+-------
+
+Title: Embed Playwright browser view inside the Next.js dashboard
+
+Description:
+
+The Playwright-controlled Chromium instance currently opens as a separate OS-level browser window. Users must manually switch between the Next.js dashboard and the Playwright window during meetings. This creates a fragmented experience where the user has to Alt-Tab between the automated browser window for joining the meeting, enabling closed captions, and clicking join, and the dashboard for viewing transcripts, slides, and chatting with the copilot.
+
+When the user clicks Deploy Copilot on the dashboard, a POST request to /api/start-meeting triggers browser_sensor.py which calls playwright.chromium.launch_persistent_context with headless set to False. This opens a full Chromium window on the desktop.
+
+There are three potential approaches to fix this. The simplest is iframe embedding, where the meeting URL is loaded in an iframe inside the dashboard. However, most meeting platforms set X-Frame-Options to DENY or have restrictive Content-Security-Policy headers that block this approach. The most viable option is noVNC or WebSocket streaming, where Playwright runs in a headless or virtual display environment like Xvfb and the browser visual output is streamed to the dashboard via noVNC. This gives full browser control from within the dashboard but requires additional infrastructure. The lightweight option is CDP Screencast, where Chrome DevTools Protocol Page.startScreencast captures periodic JPEG frames of the Playwright page and streams them to the frontend over the existing WebSocket connection. This requires no additional dependencies and uses existing infrastructure but is view-only and frame rate limited.
+
+The CDP Screencast approach is recommended as the initial implementation for its simplicity, with noVNC as a future upgrade for full interactivity.
+
+Relevant files: backend/sensors/browser_sensor.py, frontend/src/app/meeting/[id]/page.tsx, frontend/src/components/MeetingDashboard.tsx
+
+Labels: enhancement, frontend, playwright, UX
+
+
+ISSUE 5
+-------
+
+Title: Per-meeting data isolation with separate storage directories per session
+
+Description:
+
+All captured slides, logs, and persistent data are written to a single flat directory at backend/data/. Data from different meetings is mixed together with no folder-level separation. This makes it impossible to attribute artifacts to specific sessions.
+
+Slides are named sequentially as slide_1.png, slide_2.png, and so on. When a second meeting starts, it will generate slides with the same names and overwrite the first meeting's files. There is no metadata file linking a slide to the meeting session that produced it.
+
+The proposed fix is to restructure the data directory into session-scoped subdirectories. The new structure would look like data/meetings/{meeting_id}/slides/ for slide images, data/meetings/{meeting_id}/transcript.jsonl for the session transcript, and data/meetings/{meeting_id}/metadata.json for session metadata like start time, platform, and meeting URL. The chroma_db directory would remain at the data root level but contain per-session collections internally.
+
+The implementation steps are as follows. Generate a meeting_id on session start using UUID in main.py. Create the session directory structure when the StartMeeting event fires. Update browser_sensor.py to write slide captures to the session-scoped path instead of the flat data directory. Update state_manager.py to track the active_meeting_id and expose it via the state context. Update docker-compose.yaml volume mounts to persist the new directory structure.
+
+This issue has no dependencies and can be implemented independently. It blocks Issue 3 because session persistence requires per-meeting directories to be in place first.
+
+Relevant files: backend/sensors/browser_sensor.py, backend/core/state_manager.py, backend/main.py, docker-compose.yaml
+
+Labels: enhancement, data, storage

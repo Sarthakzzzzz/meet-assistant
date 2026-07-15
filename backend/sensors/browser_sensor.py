@@ -28,6 +28,9 @@ class BrowserSensor:
         self._running = False
         self._tasks = []
         
+        # ISSUE #5: All slides are saved to a single flat directory regardless of meeting session.
+        # This causes file overwrites across meetings. Needs per-session subdirectories:
+        # e.g. data/meetings/{meeting_id}/slides/
         self.slides_dir = "data/presentation_slides"
         os.makedirs(self.slides_dir, exist_ok=True)
         self.last_slide_img = None
@@ -63,6 +66,10 @@ class BrowserSensor:
         except AttributeError:
             pass
 
+        # ISSUE #4: Playwright launches a separate OS-level browser window here.
+        # The user must Alt-Tab between this window and the Next.js dashboard.
+        # Proposed fix: embed the browser view inside the dashboard via CDP screencast
+        # (Page.startScreencast) or noVNC streaming, eliminating the separate window.
         self.context = await self.playwright.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
             headless=self.headless,
@@ -220,7 +227,12 @@ class BrowserSensor:
         """Saves screenshots of ONLY the presentation/shared-screen area when slides change."""
         logger.info("Presentation monitor active.")
 
-        # Multiple selectors to try for the shared content area in Microsoft Teams
+        # ISSUE #1: FluentUI streaming prevents presentation area detection on Microsoft Teams.
+        # Teams renders shared-screen content via chunked MediaSource buffers and dynamically
+        # reconstructed DOM nodes. None of the selectors below reliably match the presentation
+        # region, causing SlideCaptured events to never fire on Teams.
+        # Possible fixes: intercept MediaSource streams via CDP, use canvas.toDataURL() for
+        # pixel-diffing, or leverage Page.screencastFrame from Chrome DevTools Protocol.
         TEAMS_STAGE_SELECTORS = [
             "div[data-tid='stage-gallery']",
             "div[data-tid='calling-sharing-stage']",
@@ -274,6 +286,8 @@ class BrowserSensor:
                 if screenshot_bytes and self._is_new_slide(screenshot_bytes):
                     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                     filename = f"slide_{timestamp}.png"
+                    # ISSUE #5: Slides are saved to a flat shared directory.
+                    # Should write to data/meetings/{meeting_id}/slides/ instead.
                     filepath = os.path.join(self.slides_dir, filename)
 
                     with open(filepath, "wb") as f:
