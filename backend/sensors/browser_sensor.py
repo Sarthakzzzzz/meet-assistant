@@ -58,6 +58,16 @@ class BrowserSensor:
         user_data_dir = os.path.join(os.getcwd(), "data", "browser_profile")
         os.makedirs(user_data_dir, exist_ok=True)
         
+        # Clean up stale Chromium lock files from previous runs / container restarts
+        for lock_file in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
+            lock_path = os.path.join(user_data_dir, lock_file)
+            if os.path.exists(lock_path):
+                try:
+                    os.remove(lock_path)
+                    logger.info(f"Removed stale lock file: {lock_file}")
+                except OSError:
+                    pass
+        
         # Support running both natively and in Docker as root safely
         launch_args = []
         try:

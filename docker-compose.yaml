@@ -3,14 +3,18 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    init: true
+    ipc: host
+    network_mode: host
     env_file:
       - ./backend/.env
+    environment:
+      - DISPLAY=${DISPLAY}
     volumes:
       - ./backend/data:/app/data
       - ./backend/logs:/app/logs
       - ./backend/config.yaml:/app/config.yaml
+      - /tmp/.X11-unix:/tmp/.X11-unix
 
   frontend:
     build:
@@ -20,5 +24,3 @@ services:
       - "3000:3000"
     env_file:
       - ./frontend/.env.local
-    depends_on:
-      - backend

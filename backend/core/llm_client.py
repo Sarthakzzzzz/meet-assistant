@@ -1,15 +1,15 @@
 import requests
 import logging
-
+from dotenv import load_dotenv
+load_dotenv()
 logger = logging.getLogger("LLMClient")
-
 class LLMClient:
     def __init__(self, config: dict):
         llm_cfg = config.get("llm", {})
         self.provider = llm_cfg.get("provider", "openrouter")
         self.api_url = llm_cfg.get("api_url", "https://openrouter.ai/api/v1/chat/completions")
-        self.model_name = llm_cfg.get("model_name", "google/gemini-2.5-flash")
-        self.api_key = llm_cfg.get("api_key", "")
+        self.model_name = llm_cfg.get("model_name", "openrouter/free")
+        self.api_key = llm_cfg.get("api_key", "{OPENROUTER_API_KEY}")
 
     def query(self, prompt: str) -> str:
         headers = {

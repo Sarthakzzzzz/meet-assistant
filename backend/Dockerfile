@@ -8,6 +8,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
+# Install Xvfb for virtual display (needed for headed mode in Docker)
+RUN apt-get update && apt-get install -y xvfb && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -18,11 +21,14 @@ RUN playwright install chromium
 # Copy application code
 COPY . .
 
+# Make entrypoint executable
+RUN chmod +x /app/entrypoint.sh
+
 # Create directories for persistent volumes
 RUN mkdir -p /app/data /app/logs
 
 # Expose FastAPI port
 EXPOSE 8000
 
-# Run the FastAPI server
-CMD ["fastapi", "run", "main.py", "--port", "8000", "--host", "0.0.0.0"]
+# Use entrypoint that starts Xvfb then FastAPI
+ENTRYPOINT ["/app/entrypoint.sh"]

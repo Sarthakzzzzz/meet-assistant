@@ -8,3 +8,4 @@ Pillow
 langchain
 langchain-community
 chromadb
+python-dotenv
